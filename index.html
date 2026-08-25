@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatScope | Email Header Analysis</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <link rel="stylesheet" href="style.css?v=24">
+</head>
+
+<body>
+    <div class="app-container" id="main-app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <img src="/threatscope_logo.png" alt="ThreatScope Logo" class="logo-png">
+                <span>Threat<span class="logo-accent">Scope</span></span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" id="nav-new"><i class="fa-solid fa-magnifying-glass-chart"></i> New
+                    Analysis</a>
+                <a href="#" class="nav-item" id="nav-history"><i class="fa-solid fa-clock-rotate-left"></i> History</a>
+                <a href="#" class="nav-item" id="nav-intel"><i class="fa-solid fa-book-open"></i> Threat Intel</a>
+                <a href="#" class="nav-item" id="nav-settings"><i class="fa-solid fa-gear"></i> Settings</a>
+                <a href="#" class="nav-item" id="nav-about"><i class="fa-solid fa-circle-question"></i> About &
+                    Rules</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <h1>Email Header Analysis</h1>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- Input Section -->
+                <section id="input-section" class="card fade-in">
+                    <div class="input-tabs">
+                        <button class="tab-btn active" data-tab="raw">Raw Headers</button>
+                        <button class="tab-btn" data-tab="file">Upload File</button>
+                    </div>
+
+                    <div class="tab-content active" id="tab-raw">
+                        <textarea id="raw-headers" placeholder="Paste full email headers here..."></textarea>
+                        <button id="analyze-raw-btn" class="primary-btn"><i class="fa-solid fa-bolt"></i> Analyze
+                            Headers</button>
+                    </div>
+
+                    <div class="tab-content" id="tab-file">
+                        <div class="dropzone" id="file-dropzone">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <p>Drag & drop .eml or .msg files here</p>
+                            <span>or click to browse</span>
+                            <input type="file" id="file-input" accept=".eml,.msg" hidden>
+                        </div>
+                    </div>
+
+                    <!-- Privacy Disclaimer -->
+                    <p
+                        style="font-size: 11.5px; color: var(--text-secondary); text-align: center; margin-top: 16px; font-style: italic; margin-bottom: 0;">
+                        <i class="fa-solid fa-lock" style="color: var(--accent-primary); margin-right: 4px;"></i>
+                        ThreatScope performs secure, in-memory analysis. Email contents are processed dynamically and
+                        are immediately purged after generation. We do not store your data.
+                    </p>
+                </section>
+
+                <!-- Results Section (Hidden initially) -->
+                <section id="results-section" class="hidden">
+
+                    <!-- Top Widgets -->
+                    <div class="widgets-grid">
+                        <div class="widget card stat-card">
+                            <div class="stat-icon threat-low"><i class="fa-solid fa-shield-check"></i></div>
+                            <div class="stat-info">
+                                <h3>Threat Score</h3>
+                                <div class="score-display">
+                                    <span id="threat-score">0</span><span class="max-score">/100</span>
+                                </div>
+                                <p id="threat-level" class="text-success">Safe</p>
+                            </div>
+                        </div>
+
+                        <div class="widget card stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-server"></i></div>
+                            <div class="stat-info">
+                                <h3>Sender IP</h3>
+                                <h2 id="sender-ip">--</h2>
+                                <p id="sender-location"><i class="fa-solid fa-location-dot"></i> --</p>
+                            </div>
+                        </div>
+
+                        <div class="widget card auth-card">
+                            <h3>Authentication Summary</h3>
+                            <div class="auth-badges">
+                                <div class="auth-badge" id="badge-spf">
+                                    <span class="auth-label">SPF</span>
+                                    <span class="auth-status pending">Pending</span>
+                                </div>
+                                <div class="auth-badge" id="badge-dkim">
+                                    <span class="auth-label">DKIM</span>
+                                    <span class="auth-status pending">Pending</span>
+                                </div>
+                                <div class="auth-badge" id="badge-dmarc">
+                                    <span class="auth-label">DMARC</span>
+                                    <span class="auth-status pending">Pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map and Details -->
+                    <div class="main-grid">
+                        <div class="card map-container">
+                            <h3><i class="fa-solid fa-route"></i> Email Route Map</h3>
+                            <div id="route-map"></div>
+                        </div>
+
+                        <div class="card timeline-container">
+                            <h3><i class="fa-solid fa-timeline"></i> Routing Timeline</h3>
+                            <div class="timeline" id="routing-timeline">
+                                <!-- Timeline items injected via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Raw Details -->
+                    <div class="card details-container" style="margin-bottom: 24px;">
+                        <h3><i class="fa-solid fa-list-check"></i> Extracted Metadata</h3>
+                        <div class="metadata-grid" id="metadata-grid">
+                            <!-- Metadata items injected via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Checkpoints Checklist Section -->
+                    <div class="card checkpoints-container" style="margin-bottom: 24px;">
+                        <h3><i class="fa-solid fa-clipboard-list"></i> Threat Checkpoints Report</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Detailed verdict
+                            checklist of all analyzed email threat vectors.</p>
+                        <div class="checkpoints-grid" id="checkpoints-grid">
+                            <!-- Checkpoint columns A, B, C, D will be dynamically injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Extracted IOCs Section -->
+                    <div class="card iocs-container" style="margin-bottom: 24px;">
+                        <h3><i class="fa-solid fa-circle-nodes"></i> Extracted Indicators of Compromise (IOCs)</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Machine-extracted
+                            forensic markers found in the email.</p>
+
+                        <div class="iocs-tabs">
+                            <button class="ioc-tab-btn active" data-ioc-tab="ips">IPs</button>
+                            <button class="ioc-tab-btn" data-ioc-tab="domains">Domains</button>
+                            <button class="ioc-tab-btn" data-ioc-tab="urls">URLs</button>
+                            <button class="ioc-tab-btn" data-ioc-tab="attachments">Attachments</button>
+                        </div>
+
+                        <div class="ioc-tab-content active" id="ioc-tab-ips">
+                            <ul class="ioc-list" id="ioc-list-ips"></ul>
+                        </div>
+                        <div class="ioc-tab-content" id="ioc-tab-domains">
+                            <ul class="ioc-list" id="ioc-list-domains"></ul>
+                        </div>
+                        <div class="ioc-tab-content" id="ioc-tab-urls">
+                            <ul class="ioc-list" id="ioc-list-urls"></ul>
+                        </div>
+                        <div class="ioc-tab-content" id="ioc-tab-attachments">
+                            <div class="attachments-table-wrapper">
+                                <table class="attachments-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Filename</th>
+                                            <th>Size</th>
+                                            <th>SHA-256 Hash</th>
+                                            <th>Format (Magic Bytes)</th>
+                                            <th>Double Ext.</th>
+                                            <th>Macro Scan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ioc-attachments-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Analysis Section -->
+                    <div class="card ai-container glow-border">
+                        <div class="ai-header">
+                            <h3><i class="fa-solid fa-brain"></i> Smart Explanation</h3>
+                            <span class="ai-badge">AI Analysis</span>
+                        </div>
+                        <div class="ai-content">
+                            <p id="ai-explanation">Analyzing...</p>
+
+                            <div class="threat-score-breakdown">
+                                <h4><i class="fa-solid fa-calculator"></i> Threat Score Breakdown Reference</h4>
+                                <div class="breakdown-columns">
+                                    <div class="breakdown-col">
+                                        <h5>Checkpoint A: Identity</h5>
+                                        <ul>
+                                            <li>SPF Fail / None <span>+30 / +10</span></li>
+                                            <li>DKIM Fail <span>+30</span></li>
+                                            <li>DMARC Fail / None <span>+40 / +10</span></li>
+                                            <li>Envelope Mismatch <span>+20</span></li>
+                                            <li>Reply-To Mismatch <span>+30</span></li>
+                                            <li>Time-Zone Anomaly <span>+15</span></li>
+                                            <li>No MX Records <span>+10</span></li>
+                                            <li>Message-ID Anomaly <span>+10</span></li>
+                                        </ul>
+                                    </div>
+                                    <div class="breakdown-col">
+                                        <h5>Checkpoint B: Content</h5>
+                                        <ul>
+                                            <li>Spoofed Links <span>+25</span></li>
+                                            <li>Homoglyph URL <span>+30</span></li>
+                                            <li>BEC NLP Detection <span>+40</span></li>
+                                            <li>Zero-Width Obfuscation <span>+20</span></li>
+                                        </ul>
+                                    </div>
+                                    <div class="breakdown-col">
+                                        <h5>Checkpoint C: Files</h5>
+                                        <ul>
+                                            <li>Double Extension <span>+30</span></li>
+                                            <li>Bytes Mismatch <span>+40</span></li>
+                                            <li>Office Macros <span>+35</span></li>
+                                        </ul>
+                                    </div>
+                                    <div class="breakdown-col">
+                                        <h5>Checkpoint D: Intel</h5>
+                                        <ul>
+                                            <li>Domain Rep Heuristic <span>+40</span></li>
+                                            <li>IOC Rep Heuristic <span>+40</span></li>
+                                            <li>VirusTotal Flagged <span>+50</span></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <p class="breakdown-note">* Note: The final score is the sum of all triggered rules,
+                                    capped at a maximum of 100 points.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- History Section -->
+                <section id="history-section" class="hidden fade-in">
+                    <div class="card">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> Analysis History</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Recent analyses
+                            saved locally in your browser.</p>
+                        <div id="history-list" class="history-list">
+                            <!-- History items injected via JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Threat Intel Section -->
+                <section id="intel-section" class="hidden fade-in">
+                    <div class="card" style="margin-bottom: 24px;">
+                        <h3><i class="fa-solid fa-satellite-dish"></i> Active Intelligence Search</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Look up the
+                            geolocation and network details of any public IP address.</p>
+                        <div class="intel-search-bar">
+                            <input type="text" id="intel-search-input" placeholder="Enter an IP address">
+                            <button id="intel-search-btn" class="primary-btn"><i
+                                    class="fa-solid fa-magnifying-glass"></i> Search</button>
+                        </div>
+                        <div id="intel-search-results" class="hidden" style="margin-top: 20px;">
+                            <!-- Search results injected here -->
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3><i class="fa-solid fa-rss"></i> Live Threat Feed</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Latest
+                            cybersecurity news and active threat campaigns.</p>
+                        <div id="intel-feed-grid" class="intel-feed-grid">
+                            <div class="text-center" style="color: var(--text-secondary);"><i
+                                    class="fa-solid fa-spinner fa-spin"></i> Loading latest threats...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Section -->
+                <section id="settings-section" class="hidden fade-in">
+                    <div class="card">
+                        <div class="settings-header">
+                            <h3><i class="fa-solid fa-gear"></i> Application Settings</h3>
+                        </div>
+
+                        <div class="settings-grid">
+                            <!-- Threat Intel Keys -->
+                            <div class="settings-group api-keys-group">
+                                <h4 style="margin-bottom: 12px; font-weight: 600;"><i class="fa-solid fa-key"></i>
+                                    Threat Intel Integration</h4>
+                                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Configure
+                                    external API credentials for reputation lookup.</p>
+
+                                <div style="margin-bottom: 24px;">
+                                    <label
+                                        style="display: block; font-size: 14px; margin-bottom: 8px; font-weight: 500;">VirusTotal
+                                        API Key</label>
+                                    <div style="display: flex; gap: 12px; margin-bottom: 8px;">
+                                        <input type="password" id="vt-api-key" class="settings-input"
+                                            placeholder="Paste API Key here..." style="margin-bottom: 0;">
+                                        <button id="save-vt-key-btn" class="primary-btn"
+                                            style="flex-shrink: 0; padding: 10px 20px; font-size: 13.5px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap;"><i
+                                                class="fa-solid fa-floppy-disk"></i> Save Key</button>
+                                    </div>
+                                    <span
+                                        style="display: block; font-size: 12px; color: var(--text-secondary); margin-top: 6px;">Stored
+                                        locally in your browser and sent with queries. Leave blank to skip.</span>
+                                    <div id="settings-status-banner" class="settings-status hidden"
+                                        style="margin-top: 10px; margin-bottom: 0;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Theme & Appearance -->
+                            <div class="settings-group theme-group">
+                                <h4 style="margin-bottom: 12px; font-weight: 600;"><i class="fa-solid fa-palette"></i>
+                                    Theme & Appearance</h4>
+                                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Customize
+                                    the interface styling to your preference.</p>
+
+                                <div style="margin-bottom: 24px;">
+                                    <label
+                                        style="display: block; font-size: 14px; margin-bottom: 8px; font-weight: 500;">Interface
+                                        Theme</label>
+                                    <div class="theme-toggles">
+                                        <button class="theme-btn" data-theme="dark"><i class="fa-solid fa-moon"></i>
+                                            Dark</button>
+                                        <button class="theme-btn" data-theme="light"><i class="fa-solid fa-sun"></i>
+                                            Light</button>
+                                        <button class="theme-btn" data-theme="system"><i
+                                                class="fa-solid fa-desktop"></i> System</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style="display: block; font-size: 14px; margin-bottom: 8px; font-weight: 500;">Accent
+                                        Color</label>
+                                    <div class="color-picker">
+                                        <button class="color-btn" data-color="#06B6D4"
+                                            style="background-color: #06B6D4;"></button>
+                                        <button class="color-btn" data-color="#10b981"
+                                            style="background-color: #10b981;"></button>
+                                        <button class="color-btn" data-color="#8b5cf6"
+                                            style="background-color: #8b5cf6;"></button>
+                                        <button class="color-btn" data-color="#f59e0b"
+                                            style="background-color: #f59e0b;"></button>
+                                        <button class="color-btn" data-color="#ef4444"
+                                            style="background-color: #ef4444;"></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Data Management -->
+                            <div class="settings-group data-save-group">
+                                <h4 style="margin-bottom: 12px; font-weight: 600;"><i class="fa-solid fa-database"></i>
+                                    Data Management</h4>
+                                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Manage
+                                    your locally saved analysis history.</p>
+
+                                <div
+                                    style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                    <div>
+                                        <label style="display: block; font-size: 14px; font-weight: 500;">Auto-Save
+                                            History</label>
+                                        <span style="font-size: 12px; color: var(--text-secondary);">Save scan results
+                                            to browser storage</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="autosave-toggle" checked>
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style="display: block; font-size: 14px; margin-bottom: 8px; font-weight: 500;">Clear
+                                        Storage</label>
+                                    <span
+                                        style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">This
+                                        will permanently delete all your saved email scans from this browser.</span>
+                                    <button id="clear-history-btn" class="danger-btn"><i
+                                            class="fa-solid fa-trash-can"></i> Delete Saved History</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- About & Help Section -->
+                <section id="about-section" class="hidden fade-in">
+                    <div class="card doc-card" style="margin-bottom: 24px;">
+                        <h3><i class="fa-solid fa-circle-info"></i> Project Documentation & Threat Reference</h3>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14.5px;">Learn more
+                            about ThreatScope, the importance of email forensics, and detailed definitions of our
+                            evaluation rules.</p>
+
+                        <div class="doc-container">
+                            <!-- Column 1: Why Email Analysis -->
+                            <div class="doc-block">
+                                <h4><i class="fa-solid fa-user-shield"></i> Why Analyze Email Headers & Bodies?</h4>
+                                <p>Emails are the number one vector for cyber attacks, phishing, Business Email
+                                    Compromise (BEC), and malware delivery. Organizations and individuals are constantly
+                                    targeted by spoofed identities. Standard email clients hide the raw technical
+                                    headers and underlying structure of the email, preventing users from seeing how a
+                                    message was routed.</p>
+                                <p><strong>Email Header Analysis</strong> parses the server routing hops, originating IP
+                                    addresses, and authentication verification records (SPF, DKIM, DMARC) to verify if
+                                    the sender is legitimate. **MIME body parsing** extracts hidden URLs and attachments
+                                    to run deep inspections (homoglyphs, macro checks, double extensions, and
+                                    reputational scanning).</p>
+                            </div>
+
+                            <!-- Column 2: Checkpoint Engine -->
+                            <div class="doc-block">
+                                <h4><i class="fa-solid fa-gears"></i> Core Checkpoints Reference</h4>
+                                <p>ThreatScope processes every analyzed email through four comprehensive security
+                                    checkpoints:</p>
+                                <ul>
+                                    <li><strong>Checkpoint A: Identity & Authentication</strong> - Evaluates SPF, DKIM,
+                                        and DMARC alignments, Envelope-to-Header spoofing, domain MX records validation,
+                                        and time-zone routing anomalies.</li>
+                                    <li><strong>Checkpoint B: Content & URLs</strong> - Scans the body blocks for hidden
+                                        URL destinations (phishing redirections), IDN Homoglyph (Punycode) character
+                                        disguises, and urgent financial BEC text pattern matches.</li>
+                                    <li><strong>Checkpoint C: Attachments</strong> - Recursively scans files for double
+                                        extensions, verifies format discrepancies using magic bytes, and inspects Office
+                                        documents for macros executing shell commands.</li>
+                                    <li><strong>Checkpoint D: Threat Intelligence</strong> - Queries external databases
+                                        to check domain registration age via RDAP and IOC reputations using VirusTotal
+                                        signatures.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Heuristics Details List -->
+                        <div class="doc-rules-details"
+                            style="margin-top: 30px; border-top: 1px dashed var(--border-light); padding-top: 24px;">
+                            <h4><i class="fa-solid fa-list-check"></i> Heuristic Rules Engine Definitions</h4>
+                            <div class="rules-doc-grid">
+                                <div class="rule-doc-item">
+                                    <h5>SPF (Sender Policy Framework)</h5>
+                                    <p>Verifies if the sending mail server is authorized to send emails on behalf of the
+                                        sender's domain. A <strong>FAIL</strong> adds 30 penalty points. A missing
+                                        record adds 10 points.</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>DKIM (DomainKeys Identified Mail)</h5>
+                                    <p>Provides a cryptographic signature ensuring that the email content has not been
+                                        altered in transit. A signature validation <strong>FAIL</strong> adds 30 penalty
+                                        points.</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>DMARC (Domain-based Message Authentication)</h5>
+                                    <p>Uses SPF and DKIM alignments to specify how receivers should handle failures. A
+                                        DMARC validation <strong>FAIL</strong> adds 40 points; a missing record adds 10
+                                        points.</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Envelope-to-Header Alignment</h5>
+                                    <p>Checks if the Return-Path (SMTP MAIL FROM) domain aligns with the visible From
+                                        header. Mismatches often indicate spoofing (+20 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Time-Zone Anomaly</h5>
+                                    <p>Computes the difference between the Date header and the first Received hop
+                                        timestamp. Discrepancies exceeding 1 hour add 15 points.</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Domain MX Records Check</h5>
+                                    <p>Validates if the sender's domain has active Mail Exchange (MX) records. Domains
+                                        without MX records are likely fake (+10 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Reply-To Domain Mismatch</h5>
+                                    <p>Checks if the Reply-To header points to a completely different domain than the
+                                        From header (e.g. From: exec@company.com, Reply-To: exec@gmail.com). Common in
+                                        phishing (+30 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Message-ID Anomaly</h5>
+                                    <p>Checks if Message-ID exists, is malformed, or doesn't align with From or sending
+                                        hop domains (+10 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Hidden Link Destination</h5>
+                                    <p>Flags links where the visible anchor text mimics a legitimate domain but the
+                                        actual <code>href</code> points to a different destination (+25 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Homoglyph (Punycode) URLs</h5>
+                                    <p>Detects Internationalized Domain Names (IDNs) starting with <code>xn--</code>
+                                        designed to mimic English characters to deceive users (+30 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>BEC NLP Urgency Analyzer</h5>
+                                    <p>Flags emails displaying concurrent urgent language and financial keywords (wire
+                                        transfer, gift card, etc.) (+40 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Zero-Width Character Obfuscation</h5>
+                                    <p>Detects invisible Unicode characters (such as U+200B) hidden inside text or URL
+                                        strings to bypass filters (+20 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Double Extension Attachments</h5>
+                                    <p>Flags files designed to mimic documents but containing executable binaries, such
+                                        as <code>invoice.pdf.exe</code> (+30 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Magic Bytes Mismatch</h5>
+                                    <p>Inspects the raw starting bytes of attachments to verify if their real file
+                                        format matches the extension claim (+40 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Office Macro Scan</h5>
+                                    <p>Deconstructs Office documents to detect VBA project folders and keywords
+                                        executing commands like WScript, shell, or PowerShell (+35 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>Domain Reputation Heuristics</h5>
+                                    <p>Checks the sender domain for typosquatting, DGA name randomness, and Punycode
+                                        spoofing indicators (+40 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>IOC Reputation Heuristics</h5>
+                                    <p>Performs a structural analysis on all extracted links and attachment names to detect phishing keyword matches, dangerous file extensions, and brand impersonation (+40 points).</p>
+                                </div>
+                                <div class="rule-doc-item">
+                                    <h5>VirusTotal Reputation Check</h5>
+                                    <p>Checks files and URLs against VirusTotal's multi-antivirus scanners. Any positive detections add 50 penalty points (optional, key-dependent).</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Risk Scoring & Verdict Thresholds -->
+                        <div class="doc-verdicts"
+                            style="margin-top: 30px; border-top: 1px dashed var(--border-light); padding-top: 24px;">
+                            <h4><i class="fa-solid fa-scale-balanced"></i> Risk Scoring & Verdict Thresholds</h4>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 13.5px;">ThreatScope
+                                aggregates penalty points from all triggered heuristic rules. The final score (capped at
+                                100) dictates the Secure Email Gateway (SEG) verdict:</p>
+                            <div class="verdicts-grid">
+                                <div class="verdict-card clean">
+                                    <div class="verdict-header">
+                                        <span class="score-range">0 - 15</span>
+                                        <span class="verdict-label badge-success">Clean</span>
+                                    </div>
+                                    <p>Delivered to inbox normally. Represents a legitimate email that passed core
+                                        authenticity and structural integrity checks.</p>
+                                </div>
+                                <div class="verdict-card suspicious">
+                                    <div class="verdict-header">
+                                        <span class="score-range">16 - 44</span>
+                                        <span class="verdict-label badge-warning">Suspicious</span>
+                                    </div>
+                                    <p>Delivered with a warning banner prepended to the email body. Advise users to
+                                        proceed with caution when clicking links or downloading attachments.</p>
+                                </div>
+                                <div class="verdict-card quarantine">
+                                    <div class="verdict-header">
+                                        <span class="score-range">45 - 79</span>
+                                        <span class="verdict-label badge-danger">Quarantine</span>
+                                    </div>
+                                    <p>Routed to the spam/junk folder or quarantined. Held in the Secure Email Gateway
+                                        for a Security Operations Center (SOC) analyst to manually inspect.</p>
+                                </div>
+                                <div class="verdict-card reject">
+                                    <div class="verdict-header">
+                                        <span class="score-range">80+</span>
+                                        <span class="verdict-label badge-danger-heavy">Reject</span>
+                                    </div>
+                                    <p>Dropped immediately at the gateway. Blocked before delivery; the recipient never
+                                        sees the email. Reserved for clear, confirmed spoofing and malware exploits.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Data Privacy & Retention Statement -->
+                        <div class="doc-privacy"
+                            style="margin-top: 30px; border-top: 1px dashed var(--border-light); padding-top: 24px; text-align: center;">
+                            <h4><i class="fa-solid fa-lock"></i> Data Privacy & Retention Statement</h4>
+                            <p class="privacy-text"
+                                style="color: var(--text-secondary); font-size: 14px; max-width: 800px; margin: 0 auto 10px auto; line-height: 1.6;">
+                                <strong>ThreatScope performs in-memory analysis.</strong> Email bodies and attachments
+                                are processed dynamically and are immediately purged after the JSON report is generated.
+                                We do not store your data.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- postal-mime for EML parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/postal-mime@1.0.16/dist/postal-mime.js"></script>
+    <script src="script.js?v=13"></script>
+</body>
+
+</html>
